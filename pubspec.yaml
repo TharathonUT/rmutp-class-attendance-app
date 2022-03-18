@@ -43,6 +43,7 @@ dependencies:
   flutter_background_service: ^0.2.4
   flutter_secure_storage: ^5.0.2
   dio: ^4.0.4
+  flutter_beacon: ^0.5.1
 
 dev_dependencies:
 

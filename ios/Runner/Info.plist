@@ -2,16 +2,20 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSBluetoothAlwaysUsageDescription</key>  
-	<string>Need BLE permission</string>  
-	<key>NSBluetoothPeripheralUsageDescription</key>  
-	<string>Need BLE permission</string>  
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>  
-	<string>Need Location permission</string>  
-	<key>NSLocationAlwaysUsageDescription</key>  
-	<string>Need Location permission</string>  
-	<key>NSLocationWhenInUseUsageDescription</key>  
-	<string>Need Location permission</string>
+	<!-- When in use -->
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>This app want to use your location to located your classroom</string>
+  <!-- Always -->
+  <!-- for iOS 11 + -->
+  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+  <string>This app want to use your location to located your classroom</string>
+  <!-- for iOS 9/10 -->
+  <key>NSLocationAlwaysUsageDescription</key>
+  <string>This app want to use your location to located your classroom</string>
+  <!-- Bluetooth Privacy -->
+  <!-- for iOS 13 + -->
+  <key>NSBluetoothAlwaysUsageDescription</key>
+  <string>This app want to use your bluetooth to located your classroom</string>
 
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>

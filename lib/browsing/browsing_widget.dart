@@ -1,3 +1,6 @@
+import 'package:rmutp/backend/api.dart';
+import 'package:rmutp/backend/class_interfaces.dart';
+
 import '../detail/detail_widget.dart';
 import '../flutter_flow/flutter_flow_drop_down.dart';
 import '../flutter_flow/flutter_flow_theme.dart';
@@ -14,7 +17,27 @@ class BrowsingWidget extends StatefulWidget {
 
 class _BrowsingWidgetState extends State<BrowsingWidget> {
   String dropDownValue;
+  List<Term> term_list = [];
+  List<String> terms_name = [];
   final scaffoldKey = GlobalKey<ScaffoldState>();
+
+  getTerm() async{
+    var terms = await UserService.getTerm();
+    for (var term in terms) {
+      terms_name.add(term.term_name);
+    }
+    setState(() {
+      this.term_list = terms;
+      this.terms_name = terms_name;
+    });
+  }
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    getTerm();
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,7 +105,7 @@ class _BrowsingWidgetState extends State<BrowsingWidget> {
                         Padding(
                           padding: EdgeInsetsDirectional.fromSTEB(10, 0, 0, 0),
                           child: FlutterFlowDropDown(
-                            options: ['2564\n'].toList(),
+                            options: terms_name,
                             onChanged: (val) =>
                                 setState(() => dropDownValue = val),
                             width: 180,

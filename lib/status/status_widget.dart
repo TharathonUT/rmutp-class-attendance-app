@@ -1,4 +1,9 @@
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+import 'package:flutter_beacon/flutter_beacon.dart';
 import 'package:rmutp/backend/api.dart';
+import 'package:rmutp/backend/class_interfaces.dart';
 
 import '../browsing/browsing_widget.dart';
 import '../flutter_flow/flutter_flow_theme.dart';
@@ -24,70 +29,106 @@ class _StatusWidgetState extends State<StatusWidget> {
   FlutterBlue flutterBlue = FlutterBlue.instance;
   final storage = new FlutterSecureStorage();
   String roomNumber = "(กำลังตรวจสอบ...)";
-  bool isStartingClass = true;
+  bool isStartingClass = false;
+  bool isTimerStart = false;
   String studentNumber = "";
-  var userInfo;
-  var classInfo;
+  var userInfo = new UserInfo();
+  var classInfo = new ClassInfoData();
   Timer classRoomChecking;
   String classStatus = "กำลังรอเริ่มชั้นเรียน";
   Color statusColor = Color(0xFFFFD500);
+  dynamic _streamRanging;
+  List<DeviceInfo> devices = [];
+  String current_region = "";
 
   logout() async {
     await this.storage.delete(key: 'username');
     await this.storage.delete(key: 'password');
     await Navigator.push(
-              context,
-              PageTransition(
-                type: PageTransitionType.scale,
-                alignment: Alignment.bottomCenter,
-                duration: Duration(milliseconds: 200),
-                reverseDuration: Duration(milliseconds: 200),
-                child: HomePageWidget(),
-              ));
+        context,
+        PageTransition(
+          type: PageTransitionType.scale,
+          alignment: Alignment.bottomCenter,
+          duration: Duration(milliseconds: 200),
+          reverseDuration: Duration(milliseconds: 200),
+          child: HomePageWidget(),
+        ));
   }
 
-  void checkClassRoom() {
-    flutterBlue.stopScan();
+  initialBeacon() async {
+    try {
+      // if you want to manage manual checking about the required permissions
+      await flutterBeacon.initializeScanning;
+
+      // or if you want to include automatic checking permission
+      await flutterBeacon.initializeAndCheckScanning;
+    } on PlatformException catch (e) {
+      // library failed to initialize, check code and message
+      print(e);
+    }
+  }
+
+  void checkClassRoom(String identifier) {
     this.roomNumber = "(กำลังตรวจสอบ...)";
-    var subscription = flutterBlue.scan();
-    subscription.listen((event) {
-      var ad = event.advertisementData;
-      if (ad.localName.startsWith('R99')) {
-        print(ad);
+    if (identifier.startsWith('R99')) {
+      print(identifier);
+      setState(() {
+        this.roomNumber = identifier;
+        getClassInfo(this.roomNumber.replaceAll("R", ""));
+      });
+      print(this.isTimerStart);
+      if (this.isStartingClass && !this.isTimerStart) {
         setState(() {
-          this.roomNumber = ad.localName.split('R')[1].split('D')[0];
-          getClassInfo(this.roomNumber);
+          this.isTimerStart = true;
         });
+        UserService.stamp(this.studentNumber, this.roomNumber.replaceAll("R", ""));
+      }
+      else{
+        setState(() {
+          this.isTimerStart = false;
+        });
+        this.classRoomChecking.cancel();
+      }
+    }else{
+      setState(() {
+        this.roomNumber = "ไม่พบห้องเรียน";
+      });
+    }
+  }
 
-        if (isStartingClass) {
-          this.classRoomChecking =
-              new Timer.periodic(Duration(minutes: 10), ((Timer timer) {
-            flutterBlue.stopScan();
-            var subscription = flutterBlue.scan();
-            subscription.listen((event) {
-              var rssi = event.rssi;
-              var ad = event.advertisementData;
-              if (ad.localName.startsWith('R99')) {
-                print(ad);
-                setState(() {
-                  this.roomNumber = ad.localName.split('R')[1].split('D')[0];
-                  getClassInfo(this.roomNumber);
-                });
-                flutterBlue.stopScan();
-                print("stopped");
-              } else {
-                setState(() {
-                  this.roomNumber = "ไม่พบห้องเรียน";
-                });
-                flutterBlue.stopScan();
-                print("stopped");
-              }
-            });
-          }));
-        }
+  checkClassRoomBeacon() async {
+    final regions = <Region>[];
+    var devices = await UserService.getDevice();
+    setState(() {
+      this.devices = devices;
+    });
 
-        flutterBlue.stopScan();
-        print("stopped");
+    if (Platform.isIOS) {
+      // iOS platform, at least set identifier and proximityUUID for region scanning
+      for (var device in devices) {
+        regions.add(Region(
+            identifier: device.device_name,
+            proximityUUID: device.device_mac_address));
+      }
+    } else {
+      // android platform, it can ranging out of beacon that filter all of Proximity UUID
+      for (var device in devices) {
+        regions.add(Region(identifier: device.device_name));
+      }
+    }
+
+    // to start ranging beacons
+    _streamRanging =
+        flutterBeacon.ranging(regions,).listen((RangingResult result) async {
+      // result contains a region and list of beacons found
+      // list can be empty if no matching beacons were found in range
+      if (result.region.identifier != "" && result.region.identifier != null) {
+        setState(() {
+          this.current_region = result.region.identifier;
+        });
+        checkClassRoom(result.region.identifier);
+        print(result.region.identifier);
+        await Future.delayed(Duration(minutes: 10));
       }
     });
   }
@@ -106,14 +147,15 @@ class _StatusWidgetState extends State<StatusWidget> {
     setState(() {
       this.classInfo = classInfo;
     });
-    if (classInfo['is_started'] == "1") {
+    if (classInfo.is_started == '1') {
       setState(() {
-        this.classStatus = "เข้าเรียนปกติ";
+        this.isStartingClass = true;
+        this.classStatus = "เริ่มเรียน";
         this.statusColor = Color(0xFF70FFA4);
       });
-    }
-    else{
+    } else {
       setState(() {
+        this.isStartingClass = false;
         this.classStatus = "กำลังรอเริ่มชั้นเรียน";
         this.statusColor = Color(0xFFFFD500);
       });
@@ -124,8 +166,11 @@ class _StatusWidgetState extends State<StatusWidget> {
   void initState() {
     // TODO: implement initState
 
-    checkClassRoom();
+    //checkClassRoom();
+    initialBeacon();
+    checkClassRoomBeacon();
     getInfo();
+    print(this.classInfo.toString());
     super.initState();
   }
 
@@ -275,7 +320,7 @@ class _StatusWidgetState extends State<StatusWidget> {
                     Padding(
                       padding: EdgeInsetsDirectional.fromSTEB(0, 10, 0, 1),
                       child: Text(
-                        userInfo['first_name'] + " " + userInfo['last_name'],
+                        userInfo.first_name + " " + userInfo.last_name,
                         style: FlutterFlowTheme.of(context).bodyText1.override(
                               fontFamily: 'Mitr',
                               color: Color(0xFF343434),
@@ -360,7 +405,9 @@ class _StatusWidgetState extends State<StatusWidget> {
                                             ),
                                       ),
                                       Text(
-                                        classInfo['subject_id'],
+                                        classInfo.subject_id == 0
+                                            ? "กำลังตรวจสอบ"
+                                            : classInfo.subject_id.toString(),
                                         textAlign: TextAlign.justify,
                                         style: FlutterFlowTheme.of(context)
                                             .bodyText1
@@ -391,7 +438,7 @@ class _StatusWidgetState extends State<StatusWidget> {
                                             ),
                                       ),
                                       Text(
-                                        classInfo['subject_name'],
+                                        classInfo.subject_name,
                                         textAlign: TextAlign.justify,
                                         style: FlutterFlowTheme.of(context)
                                             .bodyText1
@@ -422,9 +469,11 @@ class _StatusWidgetState extends State<StatusWidget> {
                                             ),
                                       ),
                                       Text(
-                                        classInfo['first_name'] +
-                                            " " +
-                                            classInfo['last_name'],
+                                        classInfo.subject_id == 0
+                                            ? "กำลังตรวจสอบ"
+                                            : classInfo.first_name +
+                                                " " +
+                                                classInfo.last_name,
                                         textAlign: TextAlign.justify,
                                         style: FlutterFlowTheme.of(context)
                                             .bodyText1
@@ -455,7 +504,7 @@ class _StatusWidgetState extends State<StatusWidget> {
                                             ),
                                       ),
                                       Text(
-                                        classInfo['on_week_date'],
+                                        classInfo.on_week_date,
                                         textAlign: TextAlign.justify,
                                         style: FlutterFlowTheme.of(context)
                                             .bodyText1
@@ -473,7 +522,7 @@ class _StatusWidgetState extends State<StatusWidget> {
                                       5, 20, 5, 0),
                                   child: FFButtonWidget(
                                     onPressed: () async {
-                                      checkClassRoom();
+                                      checkClassRoom(this.current_region);
                                     },
                                     text: 'รีเฟรช',
                                     options: FFButtonOptions(
